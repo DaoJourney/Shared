@@ -1,0 +1,30 @@
+from http.server import BaseHTTPRequestHandler, HTTPServer
+
+# Classe para lidar com as requisições
+class SimpleAPIHandler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        self.send_response(200)
+        self.send_header('Content-type', 'text/plain')
+        self.end_headers()
+        self.wfile.write(b'Olá! Você acessou a API!')
+
+    def do_POST(self):
+        content_length = int(self.headers['Content-Length'])
+        post_data = self.rfile.read(content_length)
+        
+        self.send_response(200)
+        self.send_header('Content-type', 'text/plain')
+        self.end_headers()
+        self.wfile.write(b'Resposta da API para o POST: ' + post_data)
+
+def run_server():
+    host = 'localhost'
+    port = 8000
+    server_address = (host, port)
+
+    httpd = HTTPServer(server_address, SimpleAPIHandler)
+    print(f'Servidor rodando em http://{host}:{port}')
+    httpd.serve_forever()
+
+if __name__ == '__main__':
+    run_server()
