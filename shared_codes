@@ -1,26 +1,37 @@
-from flask import Flask, request, jsonify
+import boto3
 
-app = Flask(__name__)
+def assume_role(role_arn, session_name):
+    sts_client = boto3.client('sts')
+    response = sts_client.assume_role(
+        RoleArn=role_arn,
+        RoleSessionName=session_name
+    )
+    credentials = response['Credentials']
+    return boto3.Session(
+        aws_access_key_id=credentials['AccessKeyId'],
+        aws_secret_access_key=credentials['SecretAccessKey'],
+        aws_session_token=credentials['SessionToken']
+    )
 
-@app.route('/get', methods=['GET'])
-def my_get_view():
-    # Lógica para a requisição GET
-    data = {'message': 'Essa é uma resposta da requisição GET.'}
-    return jsonify(data)
-
-@app.route('/post', methods=['POST'])
-def my_post_view():
-    # Lógica para a requisição POST
-    if request.method == 'POST':
-        try:
-            # Obter o payload JSON
-            payload = request.get_json()
-            # Aqui, 'payload' é um dicionário Python
-            return jsonify(payload)
-        except Exception as e:
-            return jsonify({'error': 'JSON inválido.'}), 400
+def create_certificate(account_id):
+    role_arn = f"arn:aws:iam::{account_id}:role/YourCrossAccountRoleName"
+    assumed_session = assume_role(role_arn, "AssumedSession")
+    acm_client = assumed_session.client('acm')
     
-    return jsonify({'error': 'Método não permitido.'}), 405
+    response = acm_client.request_certificate(
+        DomainName='example.com',
+        ValidationMethod='DNS',
+        IdempotencyToken='UNIQUE_TOKEN'
+    )
+    
+    certificate_arn = response['CertificateArn']
+    return certificate_arn
 
-if __name__ == '__main__':
-    app.run(debug=True)
+def lambda_handler(event, context):
+    destination_account_id = "12390843"  # Substitua pelo ID da conta de destino
+    certificate_arn = create_certificate(destination_account_id)
+    
+    return {
+        "statusCode": 200,
+        "body": f"Certificate created: {certificate_arn}"
+    }
