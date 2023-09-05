@@ -1,37 +1,75 @@
-import boto3
+static async Task Main()
+    {
+        string accessKey = "SUA_ACCESS_KEY";
+        string secretKey = "SUA_SECRET_KEY";
+        string service = "execute-api";
+        string region = "us-east-1";
+        string apiId = "SEU_API_GATEWAY_ID";
 
-def assume_role(role_arn, session_name):
-    sts_client = boto3.client('sts')
-    response = sts_client.assume_role(
-        RoleArn=role_arn,
-        RoleSessionName=session_name
-    )
-    credentials = response['Credentials']
-    return boto3.Session(
-        aws_access_key_id=credentials['AccessKeyId'],
-        aws_secret_access_key=credentials['SecretAccessKey'],
-        aws_session_token=credentials['SessionToken']
-    )
+        // Crie um cliente HttpClient para enviar a solicitação.
+        using (HttpClient client = new HttpClient())
+        {
+            // Construa o URL do endpoint do API Gateway.
+            string endpoint = $"https://{apiId}.execute-api.{region}.amazonaws.com";
 
-def create_certificate(account_id):
-    role_arn = f"arn:aws:iam::{account_id}:role/YourCrossAccountRoleName"
-    assumed_session = assume_role(role_arn, "AssumedSession")
-    acm_client = assumed_session.client('acm')
-    
-    response = acm_client.request_certificate(
-        DomainName='example.com',
-        ValidationMethod='DNS',
-        IdempotencyToken='UNIQUE_TOKEN'
-    )
-    
-    certificate_arn = response['CertificateArn']
-    return certificate_arn
+            // Crie uma solicitação HTTP GET para o endpoint.
+            HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get, endpoint);
 
-def lambda_handler(event, context):
-    destination_account_id = "12390843"  # Substitua pelo ID da conta de destino
-    certificate_arn = create_certificate(destination_account_id)
-    
-    return {
-        "statusCode": 200,
-        "body": f"Certificate created: {certificate_arn}"
+            // Calcule a data atual no formato necessário.
+            string date = DateTime.UtcNow.ToString("yyyyMMddTHHmmssZ");
+
+            // Construa o cabeçalho de autorização.
+            string canonicalRequest = $"GET\n/\n\nhost:{endpoint}\nx-amz-date:{date}\n\nhost;x-amz-date\n";
+            string hashedCanonicalRequest = ComputeSha256Hash(canonicalRequest);
+            string stringToSign = $"AWS4-HMAC-SHA256\n{date}\n{date.Substring(0, 8)}/{region}/{service}/aws4_request\n{hashedCanonicalRequest}";
+            byte[] signingKey = GetSignatureKey(secretKey, date.Substring(0, 8), region, service);
+            string signature = ComputeHmacSha256(signingKey, stringToSign);
+
+            string authorizationHeader = $"AWS4-HMAC-SHA256 Credential={accessKey}/{date.Substring(0, 8)}/{region}/{service}/aws4_request, SignedHeaders=host;x-amz-date, Signature={signature}";
+
+            // Adicione o cabeçalho de autorização à solicitação.
+            request.Headers.TryAddWithoutValidation("Authorization", authorizationHeader);
+
+            // Envie a solicitação e obtenha a resposta.
+            HttpResponseMessage response = await client.SendAsync(request);
+            string responseBody = await response.Content.ReadAsStringAsync();
+
+            // Exiba a resposta.
+            Console.WriteLine(responseBody);
+        }
+    }
+
+    // Função para calcular o hash SHA-256 de uma string.
+    static string ComputeSha256Hash(string rawData)
+    {
+        using (SHA256 sha256 = SHA256.Create())
+        {
+            byte[] bytes = sha256.ComputeHash(Encoding.UTF8.GetBytes(rawData));
+            StringBuilder builder = new StringBuilder();
+            foreach (byte b in bytes)
+            {
+                builder.Append(b.ToString("x2"));
+            }
+            return builder.ToString();
+        }
+    }
+
+    // Função para calcular a chave de assinatura HMAC-SHA256.
+    static byte[] GetSignatureKey(string key, string dateStamp, string regionName, string serviceName)
+    {
+        byte[] kSecret = Encoding.UTF8.GetBytes($"AWS4{key}");
+        byte[] kDate = ComputeHmacSha256(kSecret, dateStamp);
+        byte[] kRegion = ComputeHmacSha256(kDate, regionName);
+        byte[] kService = ComputeHmacSha256(kRegion, serviceName);
+        byte[] kSigning = ComputeHmacSha256(kService, "aws4_request");
+        return kSigning;
+    }
+
+    // Função para calcular o HMAC-SHA256.
+    static byte[] ComputeHmacSha256(byte[] key, string data)
+    {
+        using (HMACSHA256 hmac = new HMACSHA256(key))
+        {
+            return hmac.ComputeHash(Encoding.UTF8.GetBytes(data));
+        }
     }
