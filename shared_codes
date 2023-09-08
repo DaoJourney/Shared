@@ -1,26 +1,19 @@
-using System.Xml;
+using (StringWriter sw = new StringWriter())
+        {
+            // Criar um Utf8JsonWriter usando o StringWriter
+            using (JsonWriter writer = new Utf8JsonWriter(sw))
+            {
+                // Serializar o objeto Person em JSON
+                JsonSerializer.Serialize(writer, renovacao);
+            }
 
-
-string xmlString = await response.Content.ReadAsStringAsync();
-
-// Carregue a resposta XML em um objeto XmlDocument
-XmlDocument xmlDoc = new XmlDocument();
-xmlDoc.LoadXml(xmlString); // Supondo que xmlString contenha o XML da resposta
-
-// Defina os namespaces necessários
-XmlNamespaceManager nsManager = new XmlNamespaceManager(xmlDoc.NameTable);
-nsManager.AddNamespace("soap", "http://schemas.xmlsoap.org/soap/envelope/");
-nsManager.AddNamespace("ns2", "namespace_do_ns2_aqui"); // Substitua pelo namespace real do ns2
-
-// Navegue para o elemento PKCS7Cert usando XPath
-XmlNode pkcs7CertNode = xmlDoc.SelectSingleNode("/soap:Envelope/soap:Body/ns2:PVOrderResponse/Response/PVOrderDetail/Fulfillment/ServerCertificate/PKCS7Cert", nsManager);
-
-if (pkcs7CertNode != null)
-{
-    string pkcs7CertValue = pkcs7CertNode.InnerText;
-    // Faça algo com o valor de PKCS7Cert
+            // Obter a string JSON resultante do StringWriter
+            string content = sw.ToString();
+        }
+    }
 }
-else
-{
-    // O elemento PKCS7Cert não foi encontrado, lide com a situação de acordo com sua necessidade
-}
+
+
+
+
+
