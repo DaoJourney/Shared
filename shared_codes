@@ -1,75 +1,26 @@
-static async Task Main()
-    {
-        string accessKey = "SUA_ACCESS_KEY";
-        string secretKey = "SUA_SECRET_KEY";
-        string service = "execute-api";
-        string region = "us-east-1";
-        string apiId = "SEU_API_GATEWAY_ID";
+using System.Xml;
 
-        // Crie um cliente HttpClient para enviar a solicitação.
-        using (HttpClient client = new HttpClient())
-        {
-            // Construa o URL do endpoint do API Gateway.
-            string endpoint = $"https://{apiId}.execute-api.{region}.amazonaws.com";
 
-            // Crie uma solicitação HTTP GET para o endpoint.
-            HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get, endpoint);
+string xmlString = await response.Content.ReadAsStringAsync();
 
-            // Calcule a data atual no formato necessário.
-            string date = DateTime.UtcNow.ToString("yyyyMMddTHHmmssZ");
+// Carregue a resposta XML em um objeto XmlDocument
+XmlDocument xmlDoc = new XmlDocument();
+xmlDoc.LoadXml(xmlString); // Supondo que xmlString contenha o XML da resposta
 
-            // Construa o cabeçalho de autorização.
-            string canonicalRequest = $"GET\n/\n\nhost:{endpoint}\nx-amz-date:{date}\n\nhost;x-amz-date\n";
-            string hashedCanonicalRequest = ComputeSha256Hash(canonicalRequest);
-            string stringToSign = $"AWS4-HMAC-SHA256\n{date}\n{date.Substring(0, 8)}/{region}/{service}/aws4_request\n{hashedCanonicalRequest}";
-            byte[] signingKey = GetSignatureKey(secretKey, date.Substring(0, 8), region, service);
-            string signature = ComputeHmacSha256(signingKey, stringToSign);
+// Defina os namespaces necessários
+XmlNamespaceManager nsManager = new XmlNamespaceManager(xmlDoc.NameTable);
+nsManager.AddNamespace("soap", "http://schemas.xmlsoap.org/soap/envelope/");
+nsManager.AddNamespace("ns2", "namespace_do_ns2_aqui"); // Substitua pelo namespace real do ns2
 
-            string authorizationHeader = $"AWS4-HMAC-SHA256 Credential={accessKey}/{date.Substring(0, 8)}/{region}/{service}/aws4_request, SignedHeaders=host;x-amz-date, Signature={signature}";
+// Navegue para o elemento PKCS7Cert usando XPath
+XmlNode pkcs7CertNode = xmlDoc.SelectSingleNode("/soap:Envelope/soap:Body/ns2:PVOrderResponse/Response/PVOrderDetail/Fulfillment/ServerCertificate/PKCS7Cert", nsManager);
 
-            // Adicione o cabeçalho de autorização à solicitação.
-            request.Headers.TryAddWithoutValidation("Authorization", authorizationHeader);
-
-            // Envie a solicitação e obtenha a resposta.
-            HttpResponseMessage response = await client.SendAsync(request);
-            string responseBody = await response.Content.ReadAsStringAsync();
-
-            // Exiba a resposta.
-            Console.WriteLine(responseBody);
-        }
-    }
-
-    // Função para calcular o hash SHA-256 de uma string.
-    static string ComputeSha256Hash(string rawData)
-    {
-        using (SHA256 sha256 = SHA256.Create())
-        {
-            byte[] bytes = sha256.ComputeHash(Encoding.UTF8.GetBytes(rawData));
-            StringBuilder builder = new StringBuilder();
-            foreach (byte b in bytes)
-            {
-                builder.Append(b.ToString("x2"));
-            }
-            return builder.ToString();
-        }
-    }
-
-    // Função para calcular a chave de assinatura HMAC-SHA256.
-    static byte[] GetSignatureKey(string key, string dateStamp, string regionName, string serviceName)
-    {
-        byte[] kSecret = Encoding.UTF8.GetBytes($"AWS4{key}");
-        byte[] kDate = ComputeHmacSha256(kSecret, dateStamp);
-        byte[] kRegion = ComputeHmacSha256(kDate, regionName);
-        byte[] kService = ComputeHmacSha256(kRegion, serviceName);
-        byte[] kSigning = ComputeHmacSha256(kService, "aws4_request");
-        return kSigning;
-    }
-
-    // Função para calcular o HMAC-SHA256.
-    static byte[] ComputeHmacSha256(byte[] key, string data)
-    {
-        using (HMACSHA256 hmac = new HMACSHA256(key))
-        {
-            return hmac.ComputeHash(Encoding.UTF8.GetBytes(data));
-        }
-    }
+if (pkcs7CertNode != null)
+{
+    string pkcs7CertValue = pkcs7CertNode.InnerText;
+    // Faça algo com o valor de PKCS7Cert
+}
+else
+{
+    // O elemento PKCS7Cert não foi encontrado, lide com a situação de acordo com sua necessidade
+}
